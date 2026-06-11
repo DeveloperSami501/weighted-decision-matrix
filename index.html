@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>Weighted Decision Matrix</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f5f3;
+      color: #1a1a18;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    /* Sticky Table Column Architecture (LTR Default) */
+    #matrix-table th:first-child,
+    #matrix-table td:first-child {
+      position: sticky;
+      left: 0;
+      z-index: 10;
+      background: #fff;
+      box-shadow: inset -1px 0 0 #d3d1c7;
+    }
+    .criteria-row td:first-child {
+      background: #fafaf8;
+      box-shadow: inset -1px 0 0 #f1efe8;
+    }
+
+    /* RTL Sticky Column Overrides */
+    html[dir="rtl"] #matrix-table th:first-child,
+    html[dir="rtl"] #matrix-table td:first-child {
+      left: auto;
+      right: 0;
+      box-shadow: inset 1px 0 0 #d3d1c7;
+    }
+    html[dir="rtl"] .criteria-row td:first-child {
+      box-shadow: inset 1px 0 0 #f1efe8;
+    }
+
+    /* Theme Architecture Selectors */
+    html[data-theme="dark"] body { background: #1a1a18; color: #f0efe8; }
+    html[data-theme="dark"] input[type=text], 
+    html[data-theme="dark"] input[type=number], 
+    html[data-theme="dark"] select {
+      background: #2c2c2a !important;
+      border-color: #444441 !important;
+      color: #f0efe8 !important;
+    }
+    html[data-theme="dark"] .card { background: #2c2c2a !important; border-color: #444441 !important; }
+    html[data-theme="dark"] .result-card { background: #222220 !important; }
+    html[data-theme="dark"] .result-cell { background: #2c2c2a !important; border-color: #444441 !important; }
+    html[data-theme="dark"] .result-cell.winner { border-color: #1D9E75 !important; }
+    html[data-theme="dark"] .criteria-row td { background: #222220 !important; }
+    html[data-theme="dark"] .score-bar-wrap { background: #444441 !important; }
+    html[data-theme="dark"] .add-btn { border-color: #444441; color: #888780; }
+    html[data-theme="dark"] .add-btn:hover { background: #2c2c2a; }
+    html[data-theme="dark"] .pm-btn { border-color: #444441 !important; color: #b4b2a9 !important; }
+    html[data-theme="dark"] .weight-val { color: #888780; }
+    html[data-theme="dark"] th { color: #888780; border-color: #444441 !important; }
+    html[data-theme="dark"] td { border-color: #2e2e2c !important; }
+    html[data-theme="dark"] .section-label { color: #888780; }
+    
+    /* Dark Theme Sticky Adjustments */
+    html[data-theme="dark"] #matrix-table th:first-child {
+      background: #2c2c2a !important;
+      box-shadow: inset -1px 0 0 #444441;
+    }
+    html[data-theme="dark"] #matrix-table td:first-child {
+      background: #2c2c2a !important;
+      box-shadow: inset -1px 0 0 #2e2e2c;
+    }
+    html[data-theme="dark"] .criteria-row td:first-child {
+      background: #222220 !important;
+      box-shadow: inset -1px 0 0 #444441;
+    }
+
+    /* Dark Theme RTL Sticky Adjustments */
+    html[dir="rtl"] html[data-theme="dark"] #matrix-table th:first-child {
+      box-shadow: inset 1px 0 0 #444441;
+    }
+    html[dir="rtl"] html[data-theme="dark"] #matrix-table td:first-child {
+      box-shadow: inset 1px 0 0 #2e2e2c;
+    }
+    html[dir="rtl"] html[data-theme="dark"] .criteria-row td:first-child {
+      box-shadow: inset 1px 0 0 #444441;
+    }
+
+    html[data-theme="dark"] .modal-backdrop { background: rgba(0,0,0,0.7); }
+    html[data-theme="dark"] .modal-box { background: #2c2c2a; border-color: #444441; color: #f0efe8; }
+    html[data-theme="dark"] .matrix-item { border-color: #444441; }
+    html[data-theme="dark"] .matrix-item:hover { background: #222220; }
+    html[data-theme="dark"] .btn-secondary { background: #444441; color: #f0efe8; }
+
+    .container { max-width: 760px; margin: 0 auto; }
+    h1 { font-size: 22px; font-weight: 500; margin-bottom: 1.5rem; }
+    .section-label { font-size: 12px; font-weight: 500; color: #888780; letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 8px; display: block; }
+    
+    .choices-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1.5rem; }
+    .choices-grid input[type=text] { flex: 1; min-width: 130px; }
+    
+    input[type=text], input[type=number], select { background: #fff; border: 0.5px solid #b4b2a9; border-radius: 8px; padding: 6px 10px; font-size: 13px; color: #1a1a18; width: 100%; outline: none; font-family: inherit; }
+    input[type=text]:focus, input[type=number]:focus, select:focus { border-color: #888780; box-shadow: 0 0 0 2px rgba(136,135,128,0.15); }
+    input[type=number] { -moz-appearance: textfield; width: 34px; text-align: center; padding: 4px 2px; border-radius: 4px; flex-shrink: 0; }
+    input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+    input[type=range] { width: 70px; accent-color: #378ADD; flex-shrink: 0; }
+
+    .card { background: #fff; border-radius: 12px; border: 0.5px solid #d3d1c7; padding: 1.25rem; margin-bottom: 1.5rem; }
+    
+    .control-row { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: flex-end; margin-bottom: 12px; }
+    .control-group { display: flex; flex-direction: column; gap: 4px; }
+    .btn-row { display: flex; gap: 8px; align-items: center; }
+
+    .table-responsive-wrapper {
+      width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin-top: 5px;
+      border-radius: 6px;
+    }
+
+    table { width: 100%; border-collapse: collapse; }
+    
+    @media (max-width: 680px) {
+      table { min-width: 700px; } 
+    }
+
+    th { font-size: 12px; font-weight: 500; color: #888780; padding: 8px 10px; text-align: start; border-bottom: 0.5px solid #d3d1c7; }
+    td { padding: 8px 10px; border-bottom: 0.5px solid #f1efe8; font-size: 13px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    .criteria-row td { background: #fafaf8; }
+
+    .weight-wrap { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+    .weight-val { font-size: 12px; color: #888780; min-width: 20px; }
+    
+    .rating-wrap { display: flex; align-items: center; justify-content: center; gap: 4px; direction: ltr !important; flex-wrap: nowrap; width: 100%; }
+
+    .pm-btn { width: 26px; height: 26px; border: 0.5px solid #b4b2a9; border-radius: 6px; background: none; cursor: pointer; font-size: 15px; color: #888780; padding: 0; line-height: 1; font-family: inherit; transition: background 0.1s; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+    .pm-btn:hover { background: #f1efe8; }
+    .del-btn { background: none; border: none; cursor: pointer; padding: 2px 4px; font-size: 14px; color: #b4b2a9; line-height: 1; transition: color 0.1s; }
+    .del-btn:hover { color: #E24B4A; }
+    
+    .add-btn { font-size: 13px; color: #888780; background: none; border: 0.5px dashed #b4b2a9; border-radius: 8px; padding: 6px 14px; cursor: pointer; margin-top: 10px; font-family: inherit; transition: background 0.1s; display: inline-flex; align-items: center; gap: 6px; }
+    .add-btn:hover { background: #f1efe8; }
+
+    .result-card { background: #f5f5f3; border-radius: 12px; padding: 1.25rem; margin-top: 1.5rem; }
+    .result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+    
+    @media (max-width: 480px) {
+      .result-grid { grid-template-columns: 1fr; gap: 8px; }
+    }
+
+    .result-cell { background: #fff; border-radius: 8px; padding: 12px 14px; border: 0.5px solid #d3d1c7; position: relative; }
+    .result-cell.winner { border: 2px solid #1D9E75; }
+    .result-name { font-size: 12px; font-weight: 500; color: #888780; margin-bottom: 4px; }
+    .result-score { font-size: 22px; font-weight: 500; color: #1a1a18; }
+    .result-score span { font-size: 13px; font-weight: 400; color: #888780; }
+    .result-pct { font-size: 12px; color: #888780; margin: 4px 0 8px; }
+    .score-bar-wrap { height: 6px; background: #f1efe8; border-radius: 99px; overflow: hidden; }
+    .score-bar { height: 100%; border-radius: 99px; transition: width 0.3s ease; }
+    .winner-badge { display: inline-block; margin-top: 8px; font-size: 11px; font-weight: 500; background: #E1F5EE; color: #0F6E56; border-radius: 8px; padding: 2px 8px; }
+
+    /* Custom Popup Modal CSS Architecture */
+    .modal-backdrop { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 2000; opacity: 0; pointer-events: none; transition: opacity 0.2s ease; }
+    .modal-backdrop.open { opacity: 1; pointer-events: auto; }
+    .modal-box { background: #fff; border: 0.5px solid #d3d1c7; border-radius: 14px; width: 90%; max-width: 420px; padding: 1.25rem; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); transform: translateY(10px); transition: transform 0.2s ease; }
+    .modal-backdrop.open .modal-box { transform: translateY(0); }
+    .modal-header { font-size: 16px; font-weight: 500; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; }
+    .matrix-list-container { max-height: 200px; overflow-y: auto; border: 0.5px solid #d3d1c7; border-radius: 8px; margin-bottom: 1rem; }
+    .matrix-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-bottom: 0.5px solid #f1efe8; font-size: 13px; cursor: pointer; }
+    .matrix-item:last-child { border-bottom: none; }
+    .matrix-item:hover { background: #fafaf8; }
+    .matrix-item input[type="checkbox"] { width: 16px; height: 16px; accent-color: #E24B4A; cursor: pointer; }
+    .matrix-item-info { display: flex; flex-direction: column; }
+    .matrix-item-date { font-size: 11px; color: #888780; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 8px; }
+    .btn-secondary { background: #f1efe8; border: none; border-radius: 8px; padding: 6px 14px; font-size: 13px; cursor: pointer; color: #1a1a18; font-family: inherit; }
+    .btn-danger { background: #E24B4A; border: none; border-radius: 8px; padding: 6px 14px; font-size: 13px; cursor: pointer; color: #fff; font-family: inherit; display: inline-flex; align-items: center; gap: 4px; }
+    .btn-danger:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    html[dir="rtl"] th { text-align: right; }
+    html[dir="rtl"] .add-btn i { transform: scaleX(-1); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    
+    <div class="card" style="padding: 1rem; margin-bottom: 1rem;">
+      <div class="control-row">
+        <div class="control-group">
+          <label class="section-label" data-i18n="langLabel">Language / اللغة</label>
+          <select id="lang-select" style="width: 105px; padding: 4px 8px;">
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+            <option value="ar">العربية</option>
+          </select>
+        </div>
+
+        <div class="control-group">
+          <label class="section-label" data-i18n="themeLabel">Theme / المظهر</label>
+          <select id="theme-select" style="width: 115px; padding: 4px 8px;">
+            <option value="system" data-i18n="themeSystem">Auto (System)</option>
+            <option value="light" data-i18n="themeLight">Light</option>
+            <option value="dark" data-i18n="themeDark">Dark</option>
+          </select>
+        </div>
+
+        <div class="control-group" style="flex-grow: 1; max-width: 260px;">
+          <label class="section-label" data-i18n="selectMatrix">Saved Matrices</label>
+          <select id="matrix-select" style="padding: 4px 8px;"></select>
+        </div>
+
+        <div class="btn-row">
+          <button id="new-matrix-btn" class="add-btn" style="margin-top:0; padding: 5px 12px;" data-i18n="newBtn">New</button>
+          <button id="open-del-modal-btn" class="del-btn" style="border: 1px solid #b4b2a9; padding: 5px 8px; border-radius: 8px; font-size:12px;" data-i18n="deleteBtn">Delete</button>
+        </div>
+      </div>
+
+      <div style="margin-top: 10px;">
+        <label class="section-label" data-i18n="matrixNameLabel">Matrix Name</label>
+        <input type="text" id="matrix-name-input" value="Untitled Matrix" style="padding: 5px 10px;">
+      </div>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+      <h1 id="app-title" data-i18n="title">Weighted decision matrix</h1>
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+      <p class="section-label" data-i18n="choices" style="margin-bottom:0">Choices</p>
+      <div style="display: flex; gap: 6px;">
+        <button id="remove-choice-btn" class="pm-btn" style="width:32px; height:24px; font-size:12px; font-weight:bold;">−</button>
+        <button id="add-choice-btn" class="pm-btn" style="width:32px; height:24px; font-size:12px; font-weight:bold;">+</button>
+      </div>
+    </div>
+    <div class="choices-grid" id="choices-wrap"></div>
+
+    <div class="card">
+      <p class="section-label" data-i18n="criteriaWeights">Criteria &amp; weights</p>
+      
+      <div class="table-responsive-wrapper">
+        <table id="matrix-table">
+          <thead>
+            <tr id="header-row">
+              <th style="width: 25%; min-width: 130px;" data-i18n="thCriterion">Criterion</th>
+              <th style="width: 20%; min-width: 100px;" data-i18n="thWeight">Weight</th>
+              <th style="width: 36px;"></th>
+            </tr>
+          </thead>
+          <tbody id="criteria-body"></tbody>
+        </table>
+      </div>
+      
+      <button class="add-btn" id="add-criterion">
+        <i class="ti ti-plus"></i> <span data-i18n="addCriterion">Add criterion</span>
+      </button>
+
+      <div class="result-card" id="results-card"></div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="delete-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <span data-i18n="modalTitle" style="font-weight: 600;">Delete Matrices</span>
+        <i class="ti ti-x" id="close-modal-x" style="cursor:pointer; color:#888780;"></i>
+      </div>
+      <p class="section-label" data-i18n="modalDesc" style="margin-bottom:10px;">Select one or more items to delete:</p>
+      
+      <div class="matrix-list-container" id="modal-matrix-list"></div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" id="modal-cancel-btn" data-i18n="modalCancel">Cancel</button>
+        <button class="btn-danger" id="modal-confirm-btn" disabled>
+          <i class="ti ti-trash"></i> <span data-i18n="modalDelete">Delete Selected</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const CHOICE_COLORS = ['#378ADD', '#1D9E75', '#D85A30', '#8A37DD', '#E24B4A', '#20B2AA', '#D9A114', '#708090'];
+
+    const translations = {
+      en: {
+        title: "Weighted Decision Matrix",
+        langLabel: "Language",
+        themeLabel: "Theme",
+        themeSystem: "Auto (System)",
+        themeLight: "Light",
+        themeDark: "Dark",
+        selectMatrix: "Saved Boards",
+        newBtn: "New Matrix",
+        deleteBtn: "Delete",
+        matrixNameLabel: "Active Matrix Name",
+        choices: "Choices",
+        criteriaWeights: "Criteria & weights",
+        thCriterion: "Criterion",
+        thWeight: "Weight",
+        addCriterion: "Add criterion",
+        results: "Results",
+        winner: "Winner",
+        defaultCriterion: "New criterion",
+        historyLabel: "Created:",
+        modalTitle: "Manage & Delete Matrices",
+        modalDesc: "Check the fields you want to permanently clean up:",
+        modalCancel: "Cancel",
+        modalDelete: "Delete Selected",
+        defaultBoardName: "Board 1"
+      },
+      fr: {
+        title: "Matrice de Décision Pondérée",
+        langLabel: "Langue",
+        themeLabel: "Thème",
+        themeSystem: "Auto (Système)",
+        themeLight: "Clair",
+        themeDark: "Sombre",
+        selectMatrix: "Matrices Enregistrées",
+        newBtn: "Nouvelle",
+        deleteBtn: "Supprimer",
+        matrixNameLabel: "Nom de la Matrice Active",
+        choices: "Choix",
+        criteriaWeights: "Critères & coefficients",
+        thCriterion: "Critère",
+        thWeight: "Coefficient",
+        addCriterion: "Ajouter un critère",
+        results: "Résultats",
+        winner: "Gagnant",
+        defaultCriterion: "Nouveau critère",
+        historyLabel: "Créé le:",
+        modalTitle: "Gérer et Supprimer les Matrices",
+        modalDesc: "Sélectionnez les éléments à supprimer définitivement :",
+        modalCancel: "Annuler",
+        modalDelete: "Supprimer la sélection",
+        defaultBoardName: "Tableau 1"
+      },
+      ar: {
+        title: "مصفوفة اتخاذ القرار الموزونة",
+        langLabel: "اللغة",
+        themeLabel: "المظهر",
+        themeSystem: "تلقائي (النظام)",
+        themeLight: "فاتح",
+        themeDark: "داكن",
+        selectMatrix: "المصفوفات المحفوظة",
+        newBtn: "مصفوفة جديدة",
+        deleteBtn: "حذف",
+        matrixNameLabel: "اسم مصفوفة القرار الحالية",
+        choices: "الخيارات",
+        criteriaWeights: "المعايير والأوزان",
+        thCriterion: "المعيار",
+        thWeight: "الوزن",
+        addCriterion: "إضافة معيار",
+        results: "النتائج",
+        winner: "الفائز",
+        defaultCriterion: "معيار جديد",
+        historyLabel: "تاريخ الإنشاء:",
+        modalTitle: "إدارة وحذف المصفوفات",
+        modalDesc: "اختر المصفوفات التي تود حذفها نهائياً:",
+        modalCancel: "إلغاء",
+        modalDelete: "حذف العناصر المختارة",
+        defaultBoardName: "لوحة 1"
+      }
+    };
+
+    let storageEngine = {
+      activeId: "default_slot",
+      matrices: {
+        "default_slot": {
+          name: "Board 1",
+          choices: ["Option A", "Option B"],
+          criteria: [
+            { name: 'Cost/Effort', weight: 5 },
+            { name: 'Impact/Fun', weight: 5 }
+          ],
+          ratings: [[5, 5], [5, 5]],
+          dateCreated: "11/06/26"
+        }
+      },
+      lang: "en",
+      theme: "system"
+    };
+
+    function formatDate(date) {
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = String(date.getFullYear()).slice(-2);
+      return `${day}/${month}/${year}`;
+    }
+
+    function initializeMemory() {
+      const stored = localStorage.getItem('matrixApp_v3_data');
+      if (stored) {
+        storageEngine = JSON.parse(stored);
+        if (!storageEngine.theme) storageEngine.theme = "system";
+        Object.keys(storageEngine.matrices).forEach(id => {
+          if (!storageEngine.matrices[id].dateCreated) {
+            storageEngine.matrices[id].dateCreated = formatDate(new Date());
+          }
+        });
+      } else {
+        saveToMemory();
+      }
+      document.getElementById('lang-select').value = storageEngine.lang;
+      document.getElementById('theme-select').value = storageEngine.theme;
+      
+      applyLanguage(storageEngine.lang);
+      applyThemeEngine();
+      populateMatrixDropdown();
+      loadActiveMatrix();
+    }
+
+    function saveToMemory() {
+      localStorage.setItem('matrixApp_v3_data', JSON.stringify(storageEngine));
+      populateMatrixDropdown();
+    }
+
+    function applyThemeEngine() {
+      const currentTheme = storageEngine.theme;
+      if (currentTheme === "dark") {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else if (currentTheme === "light") {
+        document.documentElement.setAttribute('data-theme', 'light');
+      } else {
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light');
+      }
+    }
+
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if (storageEngine.theme === "system") {
+        applyThemeEngine();
+      }
+    });
+
+    document.getElementById('theme-select').addEventListener('change', (e) => {
+      storageEngine.theme = e.target.value;
+      saveToMemory();
+      applyThemeEngine();
+    });
+
+    function populateMatrixDropdown() {
+      const select = document.getElementById('matrix-select');
+      select.innerHTML = '';
+      const lbl = translations[storageEngine.lang].historyLabel;
+      
+      Object.keys(storageEngine.matrices).forEach(id => {
+        const opt = document.createElement('option');
+        opt.value = id;
+        const m = storageEngine.matrices[id];
+        opt.textContent = `${m.name} (${lbl} ${m.dateCreated})`;
+        if(id === storageEngine.activeId) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function loadActiveMatrix() {
+      const active = storageEngine.matrices[storageEngine.activeId];
+      document.getElementById('matrix-name-input').value = active.name;
+      renderChoicesRow();
+      renderTable();
+    }
+
+    function applyLanguage(lang) {
+      storageEngine.lang = lang;
+      document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
+      document.documentElement.lang = lang;
+      
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if(translations[lang][key]) el.textContent = translations[lang][key];
+      });
+      localStorage.setItem('matrixApp_v3_data', JSON.stringify(storageEngine));
+    }
+
+    function renderChoicesRow() {
+      const active = storageEngine.matrices[storageEngine.activeId];
+      const wrap = document.getElementById('choices-wrap');
+      wrap.innerHTML = '';
+
+      active.choices.forEach((choice, ci) => {
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.value = choice;
+        inp.placeholder = `Choice ${ci + 1}`;
+        inp.style.borderLeft = `3px solid ${CHOICE_COLORS[ci % CHOICE_COLORS.length]}`;
+        inp.style.borderRight = `3px solid ${CHOICE_COLORS[ci % CHOICE_COLORS.length]}`;
+        
+        inp.addEventListener('input', e => {
+          active.choices[ci] = e.target.value;
+          calculateResults();
+        });
+        
+        inp.addEventListener('change', () => {
+          saveToMemory();
+          renderTable();
+        });
+        wrap.appendChild(inp);
+      });
+    }
+
+    function renderTable() {
+      const active = storageEngine.matrices[storageEngine.activeId];
+      const headerRow = document.getElementById('header-row');
+      
+      while(headerRow.children.length > 3) {
+        headerRow.removeChild(headerRow.children[2]);
+      }
+
+      active.choices.forEach((choiceName, ci) => {
+        const th = document.createElement('th');
+        th.id = `th-col-${ci}`;
+        th.style.minWidth = '110px';
+        th.style.textAlign = 'center';
+        th.textContent = choiceName || `Choice ${ci + 1}`;
+        headerRow.insertBefore(th, headerRow.lastElementChild);
+      });
+
+      const tbody = document.getElementById('criteria-body');
+      tbody.innerHTML = '';
+
+      active.criteria.forEach((c, ri) => {
+        const tr = document.createElement('tr');
+        tr.className = 'criteria-row';
+
+        const tdName = document.createElement('td');
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.value = c.name;
+        inp.placeholder = translations[storageEngine.lang].defaultCriterion;
+        inp.addEventListener('input', e => { 
+          active.criteria[ri].name = e.target.value; 
+          calculateResults(); 
+        });
+        inp.addEventListener('change', () => saveToMemory());
+        tdName.appendChild(inp);
+        tr.appendChild(tdName);
+
+        const tdW = document.createElement('td');
+        const wrap = document.createElement('div');
+        wrap.className = 'weight-wrap';
+        const slider = document.createElement('input');
+        slider.type = 'range'; slider.min = 1; slider.max = 10; slider.step = 1;
+        slider.value = c.weight;
+        const wval = document.createElement('span');
+        wval.className = 'weight-val';
+        wval.textContent = c.weight;
+        slider.addEventListener('input', e => {
+          active.criteria[ri].weight = parseInt(e.target.value);
+          wval.textContent = e.target.value;
+          calculateResults();
+        });
+        slider.addEventListener('change', () => saveToMemory());
+        wrap.appendChild(slider);
+        wrap.appendChild(wval);
+        tdW.appendChild(wrap);
+        tr.appendChild(tdW);
+
+        active.choices.forEach((_, ci) => {
+          const td = document.createElement('td');
+          td.style.textAlign = 'center';
+          const rWrap = document.createElement('div');
+          rWrap.className = 'rating-wrap';
+
+          const minus = document.createElement('button');
+          minus.className = 'pm-btn';
+          minus.textContent = '−';
+          minus.addEventListener('click', () => {
+            if (active.ratings[ri][ci] > 1) { 
+              active.ratings[ri][ci]--; 
+              renderTable(); 
+              saveToMemory();
+            }
+          });
+
+          const numInp = document.createElement('input');
+          numInp.type = 'number'; numInp.min = 1; numInp.max = 10;
+          numInp.value = active.ratings[ri][ci];
+          numInp.addEventListener('input', e => {
+            let v = parseInt(e.target.value);
+            if (isNaN(v)) v = 1;
+            v = Math.max(1, Math.min(10, v));
+            active.ratings[ri][ci] = v;
+            calculateResults();
+          });
+          numInp.addEventListener('change', () => saveToMemory());
+
+          const plus = document.createElement('button');
+          plus.className = 'pm-btn';
+          plus.textContent = '+';
+          plus.addEventListener('click', () => {
+            if (active.ratings[ri][ci] < 10) { 
+              active.ratings[ri][ci]++; 
+              renderTable(); 
+              saveToMemory();
+            }
+          });
+
+          rWrap.appendChild(minus);
+          rWrap.appendChild(numInp);
+          rWrap.appendChild(plus);
+          td.appendChild(rWrap);
+          tr.appendChild(td);
+        });
+
+        const tdDel = document.createElement('td');
+        if (active.criteria.length > 1) {
+          const del = document.createElement('button');
+          del.className = 'del-btn';
+          del.innerHTML = '<i class="ti ti-x"></i>';
+          del.addEventListener('click', () => {
+            active.criteria.splice(ri, 1);
+            active.ratings.splice(ri, 1);
+            renderTable();
+            saveToMemory();
+          });
+          tdDel.appendChild(del);
+        }
+        tr.appendChild(tdDel);
+        tbody.appendChild(tr);
+      });
+
+      calculateResults();
+    }
+
+    function getResultColorByPct(pct) {
+      if (pct < 35) return '#E24B4A'; 
+      if (pct < 65) return '#D9A114'; 
+      return '#1D9E75';                
+    }
+
+    function calculateResults() {
+      const active = storageEngine.matrices[storageEngine.activeId];
+      const scores = Array(active.choices.length).fill(0);
+      const totalWeight = active.criteria.reduce((s, c) => s + c.weight, 0) || 1;
+
+      active.criteria.forEach((c, ri) => {
+        active.choices.forEach((_, ci) => {
+          const rate = (active.ratings[ri] && active.ratings[ri][ci] !== undefined) ? active.ratings[ri][ci] : 5;
+          scores[ci] += rate * c.weight;
+        });
+      });
+
+      const maxPossible = totalWeight * 10;
+      const maxScore = Math.max(...scores);
+      
+      const topScoreCount = scores.filter(s => s === maxScore).length;
+      const hasClearWinner = maxScore > 0 && topScoreCount === 1;
+
+      const card = document.getElementById('results-card');
+      card.innerHTML = `<p class="section-label" style="margin-bottom:12px">${translations[storageEngine.lang].results}</p>`;
+
+      const grid = document.createElement('div');
+      grid.className = 'result-grid';
+
+      const mappedResults = active.choices.map((choice, ci) => {
+        const score = scores[ci];
+        const pct = maxPossible > 0 ? Math.round((score / maxPossible) * 100) : 0;
+        return {
+          name: choice || `Choice ${ci + 1}`,
+          score: score,
+          pct: pct,
+          isWinner: hasClearWinner && score === maxScore,
+          color: getResultColorByPct(pct) 
+        };
+      });
+
+      mappedResults.sort((a, b) => b.score - a.score);
+
+      mappedResults.forEach((res) => {
+        const cell = document.createElement('div');
+        cell.className = 'result-cell' + (res.isWinner ? ' winner' : '');
+
+        cell.innerHTML = `
+          <div class="result-name">${res.name}</div>
+          <div class="result-score">${res.score}<span> / ${maxPossible}</span></div>
+          <div class="result-pct">${res.pct}%</div>
+          <div class="score-bar-wrap">
+            <div class="score-bar" style="width:${res.pct}%;background:${res.color};"></div>
+          </div>
+          ${res.isWinner ? `<div class="winner-badge">${translations[storageEngine.lang].winner}</div>` : ''}
+        `;
+        grid.appendChild(cell);
+      });
+
+      card.appendChild(grid);
+    }
+
+    const modal = document.getElementById('delete-modal');
+    const modalListContainer = document.getElementById('modal-matrix-list');
+    const modalConfirmBtn = document.getElementById('modal-confirm-btn');
+
+    function openModal() {
+      modalListContainer.innerHTML = '';
+      const keys = Object.keys(storageEngine.matrices);
+      const lbl = translations[storageEngine.lang].historyLabel;
+
+      keys.forEach(id => {
+        const m = storageEngine.matrices[id];
+        const row = document.createElement('div');
+        row.className = 'matrix-item';
+        
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.value = id;
+        
+        chk.addEventListener('change', evalModalSelectionCount);
+        
+        const info = document.createElement('div');
+        info.className = 'matrix-item-info';
+        info.innerHTML = `
+          <span style="font-weight:500;">${m.name}</span>
+          <span class="matrix-item-date">${lbl} ${m.dateCreated}</span>
+        `;
+        
+        row.appendChild(chk);
+        row.appendChild(info);
+        row.addEventListener('click', (e) => {
+          if(e.target !== chk) {
+            chk.checked = !chk.checked;
+            evalModalSelectionCount();
+          }
+        });
+        modalListContainer.appendChild(row);
+      });
+
+      modalConfirmBtn.disabled = true;
+      modal.classList.add('open');
+    }
+
+    function closeModal() {
+      modal.classList.remove('open');
+    }
+
+    function evalModalSelectionCount() {
+      const checkedBoxes = modalListContainer.querySelectorAll('input[type="checkbox"]:checked');
+      modalConfirmBtn.disabled = (checkedBoxes.length === 0);
+    }
+
+    document.getElementById('open-del-modal-btn').addEventListener('click', openModal);
+    document.getElementById('close-modal-x').addEventListener('click', closeModal);
+    document.getElementById('modal-cancel-btn').addEventListener('click', closeModal);
+    
+    modalConfirmBtn.addEventListener('click', () => {
+      const checkedBoxes = modalListContainer.querySelectorAll('input[type="checkbox"]:checked');
+      let activeWasDeleted = false;
+
+      checkedBoxes.forEach(box => {
+        const idToDelete = box.value;
+        if(idToDelete === storageEngine.activeId) activeWasDeleted = true;
+        delete storageEngine.matrices[idToDelete];
+      });
+
+      if (Object.keys(storageEngine.matrices).length === 0) {
+        const newId = "matrix_" + Date.now();
+        storageEngine.matrices[newId] = {
+          name: translations[storageEngine.lang].defaultBoardName,
+          choices: ["Option A", "Option B"],
+          criteria: [{ name: translations[storageEngine.lang].defaultCriterion, weight: 5 }],
+          ratings: [[5, 5]],
+          dateCreated: formatDate(new Date())
+        };
+        storageEngine.activeId = newId;
+      } else if(activeWasDeleted) {
+        storageEngine.activeId = Object.keys(storageEngine.matrices)[0];
+      }
+
+      saveToMemory();
+      loadActiveMatrix();
+      closeModal();
+    });
+
+    modal.addEventListener('click', (e) => {
+      if(e.target === modal) closeModal();
+    });
+
+    document.getElementById('add-choice-btn').addEventListener('click', () => {
+      const active = storageEngine.matrices[storageEngine.activeId];
+      if (active.choices.length >= 8) return;
+
+      active.choices.push(`Option ${String.fromCharCode(65 + active.choices.length)}`);
+      active.criteria.forEach((_, ri) => {
+        active.ratings[ri].push(5);
+      });
+
+      renderChoicesRow();
+      renderTable();
+      saveToMemory();
+    });
+
+    document.getElementById('remove-choice-btn').addEventListener('click', () => {
+      const active = storageEngine.matrices[storageEngine.activeId];
+      if (active.choices.length <= 2) return;
+
+      active.choices.pop();
+      active.criteria.forEach((_, ri) => {
+        active.ratings[ri].pop();
+      });
+
+      renderChoicesRow();
+      renderTable();
+      saveToMemory();
+    });
+
+    document.getElementById('lang-select').addEventListener('change', (e) => {
+      applyLanguage(e.target.value);
+      saveToMemory();
+      renderTable();
+    });
+
+    document.getElementById('matrix-select').addEventListener('change', (e) => {
+      storageEngine.activeId = e.target.value;
+      localStorage.setItem('matrixApp_v3_data', JSON.stringify(storageEngine));
+      loadActiveMatrix();
+    });
+
+    document.getElementById('matrix-name-input').addEventListener('input', (e) => {
+      const cleanName = e.target.value || "Untitled Matrix";
+      storageEngine.matrices[storageEngine.activeId].name = cleanName;
+      saveToMemory();
+    });
+
+    document.getElementById('new-matrix-btn').addEventListener('click', () => {
+      const newId = "matrix_" + Date.now();
+      storageEngine.matrices[newId] = {
+        name: "Board " + (Object.keys(storageEngine.matrices).length + 1),
+        choices: ["Option A", "Option B"],
+        criteria: [{ name: translations[storageEngine.lang].defaultCriterion, weight: 5 }],
+        ratings: [[5, 5]],
+        dateCreated: formatDate(new Date())
+      };
+      storageEngine.activeId = newId;
+      saveToMemory();
+      loadActiveMatrix();
+    });
+
+    document.getElementById('add-criterion').addEventListener('click', () => {
+      const active = storageEngine.matrices[storageEngine.activeId];
+      active.criteria.push({ name: translations[storageEngine.lang].defaultCriterion, weight: 3 });
+      active.ratings.push(Array(active.choices.length).fill(5));
+      renderTable();
+      saveToMemory();
+    });
+    
+    initializeMemory();
+
+    // --- High-Performance Aggressive Service Worker Update Lifecycle ---
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js')
+          .then((reg) => {
+            // Forces background network checks on Netlify instantly
+            reg.update(); 
+            
+            reg.onupdatefound = () => {
+              const installingWorker = reg.installing;
+              if (installingWorker) {
+                installingWorker.onstatechange = () => {
+                  // If a new version installed successfully over an active instance, force hot-reload
+                  if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    window.location.reload();
+                  }
+                };
+              }
+            };
+          })
+          .catch(err => console.error("SW Registration Failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>
